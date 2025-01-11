@@ -1,25 +1,69 @@
+# Название workflow, отображаемое в интерфейсе GitHub Actions
 name: Publish to NPM
 
-# Определяем, когда должен запускаться этот workflow
+# Определяем, когда должен запускаться workflow
 on:
   push:
+    # Отслеживаем изменения только в директории bi-internal
     paths:
-      - 'bi-internal/**'    # Запускается только при изменениях в директории bi-internal
+      - 'bi-internal/**'
+    # Запускаем только при изменениях в основной ветке
     branches:
-      - master               # Только для изменений в основной ветке
+      - master
 
+# Определяем задачи, которые должны быть выполнены
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       # Получаем код из репозитория
       - uses: actions/checkout@v3
+        with:
+          # Важно получить полную историю для правильной работы с версиями
+          fetch-depth: 0
       
-      # Настраиваем Node.js окружение для работы с npm
+      # Настраиваем Node.js окружение
       - uses: actions/setup-node@v3
         with:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
+      
+      # Автоматическое увеличение версии пакета
+      - name: Bump version
+        run: |
+          cd bi-internal
+          # Получаем текущую версию из package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Разбиваем версию на компоненты (major.minor.patch)
+          IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR="${VERSION_PARTS[0]}"
+          MINOR="${VERSION_PARTS[1]}"
+          PATCH="${VERSION_PARTS[2]}"
+          
+          # Увеличиваем patch-версию на 1
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          
+          # Обновляем версию в package.json
+          node -e "
+            const fs = require('fs');
+            const package = require('./package.json');
+            package.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(package, null, 2) + '\n');
+          "
+          
+          # Настраиваем Git для создания коммита
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          
+          # Создаем коммит с обновленной версией
+          git add package.json
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+          # Добавляем [skip ci] чтобы избежать зацикливания workflow
+          
+          # Отправляем изменения в репозиторий
+          git push
       
       # Проверяем, были ли реальные изменения в директории bi-internal
       - name: Check for package changes
@@ -33,10 +77,12 @@ jobs:
             echo "changes=true" >> $GITHUB_OUTPUT
           fi
       
-      # Публикуем в npm только если были изменения
+      # Публикуем пакет в npm registry
       - name: Publish to NPM
         if: steps.check.outputs.changes == 'true'
-        working-directory: ./bi-internal
-        run: npm publish --access public
+        run: |
+          cd bi-internal
+          npm publish --access public
         env:
+          # Используем токен npm для аутентификации
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
