@@ -1,0 +1,59 @@
+# Название нашего workflow для удобной идентификации в интерфейсе GitHub Actions
+name: Sync Fork with Upstream
+
+# Указываем, когда должен запускаться этот workflow
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Запуск каждые 6 часов
+  workflow_dispatch:        # Позволяет запускать workflow вручную через интерфейс GitHub
+
+# Определяем задачи, которые должны быть выполнены
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Шаг 1: Получаем код из репозитория
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0    # Получаем полную историю для корректной синхронизации
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Шаг 2: Настраиваем Git для коммитов от имени GitHub Actions
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+      
+      # Шаг 3: Выполняем синхронизацию с основным репозиторием
+      - name: Sync with upstream
+        run: |
+          # Добавляем оригинальный репозиторий как upstream
+          git remote add upstream https://github.com/luxms/bi-magic-resources.git
+          
+          # Получаем изменения из upstream
+          git fetch upstream
+          
+          # Переключаемся на главную ветку
+          git checkout master
+          
+          # Сохраняем текущую версию package.json
+          CURRENT_VERSION=$(node -p "require('./bi-internal/package.json').version")
+          
+          # Выполняем слияние с upstream
+          git merge upstream/master
+          
+          # Восстанавливаем версию в package.json
+          node -e "
+            const fs = require('fs');
+            const path = './bi-internal/package.json';
+            const pkg = require(path);
+            pkg.version = '$CURRENT_VERSION';
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+          "
+          
+          # Если были изменения в package.json, коммитим их
+          git add bi-internal/package.json
+          git diff-index --quiet HEAD || git commit -m "Restore version in package.json"
+          
+          # Отправляем изменения в ваш форк
+          git push origin master

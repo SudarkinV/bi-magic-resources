@@ -1,0 +1,42 @@
+name: Publish to NPM
+
+# Определяем, когда должен запускаться этот workflow
+on:
+  push:
+    paths:
+      - 'bi-internal/**'    # Запускается только при изменениях в директории bi-internal
+    branches:
+      - master               # Только для изменений в основной ветке
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # Получаем код из репозитория
+      - uses: actions/checkout@v3
+      
+      # Настраиваем Node.js окружение для работы с npm
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+          registry-url: 'https://registry.npmjs.org'
+      
+      # Проверяем, были ли реальные изменения в директории bi-internal
+      - name: Check for package changes
+        id: check
+        run: |
+          if git diff --quiet HEAD^ HEAD bi-internal/; then
+            echo "No changes in bi-internal directory"
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected in bi-internal directory"
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      # Публикуем в npm только если были изменения
+      - name: Publish to NPM
+        if: steps.check.outputs.changes == 'true'
+        working-directory: ./bi-internal
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
