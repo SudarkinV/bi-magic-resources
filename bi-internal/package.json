@@ -1,6 +1,6 @@
 {
   "name": "bi-internal",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "BI Internal Package",
   "main": "index.js",
   "scripts": {
