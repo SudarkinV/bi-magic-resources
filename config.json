@@ -1,4 +1,11 @@
 {
   "port": 3003,
-  "server": ""
+  "server": "",
+  "dashboards": true,
+  "resources": true,
+  "cubes": true,
+  "force": false,
+  "noRemove": false,
+  "include": "^ds_\\w+$",
+  "exclude": ""
 }
