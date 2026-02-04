@@ -123,7 +123,7 @@ class DashboardManager extends ContentManager {
 
   async createContent(path, content) {
     if (this.platform.type === 'server') {
-      [path, content] = this._prepareData(path, content);
+      [path, content] = this._prepareData(path, content, true);
     }
     const response = await this.platform.writeFile(path, content);
     return response && response.statusText === 'OK' ? response.data : null;
@@ -143,7 +143,7 @@ class DashboardManager extends ContentManager {
     await this.platform.deleteFile(path);
   }
 
-  _prepareData(path, content) {
+  _prepareData(path, content, isCreate = false) {
     const [schemaName, altId] = utils.splitResource(path);
     const tempArr = altId.split('/');
     const [topicName, dashboardName, fileName] = tempArr;
@@ -151,13 +151,13 @@ class DashboardManager extends ContentManager {
     let relativePath, id;
     if (fileName && !fileName.includes('index.json')) {
       id = fileName.substring(0, fileName.indexOf('.'));
-      relativePath = `dashlets/${id}`;
+      relativePath = isCreate ? 'dashlets' : `dashlets/${id}`;
     } else if (fileName && fileName.includes('index.json')) {
       id = dashboardName.substring(dashboardName.indexOf('.') + 1, dashboardName.length);
-      relativePath = `dashboards/${id}`;
+      relativePath = isCreate ? 'dashboards' : `dashboards/${id}`;
     } else if (dashboardName.includes('index.json')) {
       id = topicName.substring(topicName.indexOf('.') + 1, topicName.length);
-      relativePath = `dashboard_topics/${id}`;
+      relativePath = isCreate ? 'dashboard_topics' : `dashboard_topics/${id}`;
     }
 
     return [

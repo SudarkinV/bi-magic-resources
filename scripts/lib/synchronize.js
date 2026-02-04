@@ -117,7 +117,8 @@ async function synchronize(source, target) {
   try {
     for (const item of createItems) {
       const newEntity = await target[item.type].createContent(item.path, item.content);
-      if (item.type === 'dashboards' && newEntity) await fromModule.createContent(item.path, newEntity);
+      // TODO: fromModule is undefined - this code was never working
+      // if (item.type === 'dashboards' && newEntity) await fromModule.createContent(item.path, newEntity);
       finalBar.increment();
     }
 
