@@ -1,0 +1,80 @@
+name: Publish to NPM
+
+on:
+  workflow_run:
+    workflows: ["Sync Fork with Upstream"]
+    types:
+      - completed
+    branches:
+      - master
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check for package changes
+        id: check
+        run: |
+          # Look at changes between current commit and its parent
+          CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD HEAD^ | grep "^bi-internal/" || true)
+          echo "Found changes:"
+          echo "$CHANGES"
+          
+          # Check for changes and exclude package.json
+          if [ ! -z "$CHANGES" ] && ! echo "$CHANGES" | grep -q "^bi-internal/package.json$"; then
+            echo "Changes detected in bi-internal directory (excluding package.json):"
+            echo "$CHANGES"
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "No relevant changes in bi-internal directory"
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Additional debug output
+          echo "Current commit:"
+          git log -n 1 --pretty=format:"%h %s"
+
+      # Увеличиваем версию только если были обнаружены изменения
+      - name: Bump version
+        if: steps.check.outputs.changes == 'true'
+        run: |
+          cd bi-internal
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR="${VERSION_PARTS[0]}"
+          MINOR="${VERSION_PARTS[1]}"
+          PATCH="${VERSION_PARTS[2]}"
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+
+          node -e "
+            const fs = require('fs');
+            const package = require('./package.json');
+            package.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(package, null, 2) + '\n');
+          "
+
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add package.json
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+          git push
+
+      # Публикуем в npm только если были изменения
+      - name: Publish to NPM
+        if: steps.check.outputs.changes == 'true'
+        run: |
+          cd bi-internal
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

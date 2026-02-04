@@ -1,7 +1,11 @@
 {
   "port": 3003,
   "server": "",
-  "dashboards": false,
+  "dashboards": true,
   "resources": true,
-  "cubes": false
+  "cubes": true,
+  "force": false,
+  "noRemove": false,
+  "include": "^ds_\\w+$",
+  "exclude": ""
 }
