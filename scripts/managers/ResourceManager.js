@@ -75,7 +75,7 @@ class ResourceManager extends ContentManager {
 
   createPath(schemaName, resource) {
     const fileName = typeof resource === 'string' ? resource : resource.alt_id;
-    if (fileName.startsWith('.cubes/') || fileName.startsWith('topic.')) return null;
+    if (fileName.startsWith('.cubes/') || fileName.startsWith('.cubes\\') || fileName.startsWith('topic.')) return null;
     return `/${schemaName}/${utils.encodePath(fileName)}`;
   }
 }
